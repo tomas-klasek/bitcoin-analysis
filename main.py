@@ -1,7 +1,13 @@
 import requests
 
-url =  "https://blockstream.info/api/block-height/900000"
+block_height = 900000
 
-response = requests.get(url)
+url =  "https://blockstream.info/api/block-height/" + str(block_height)
 
-print(response.text)
+block_hash = requests.get(url).text.strip()
+
+hash_url = "https://blockstream.info/api/block/" + block_hash
+
+block_json = requests.get(hash_url)
+
+print(block_json.json())
