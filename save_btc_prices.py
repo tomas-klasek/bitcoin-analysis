@@ -1,9 +1,6 @@
 import requests
 import pandas as pd
-from bitcoinrpc.authproxy import AuthServiceProxy
 
-rpc_user = "bitcoin"
-rpc_password = "btc_analysis"
 
 def get_prices(ts):
     url = "https://api.binance.com/api/v3/klines"
@@ -25,20 +22,30 @@ def get_prices(ts):
     return float(data[0][4])
 
 
-df = pd.read_parquet("blocks.parquet")
+df_rpc = pd.read_parquet("blocks_1.0.parquet")
 
 prices = []
 
-for i, r in enumerate(df.itertuples(), start=1):
-    print(f"Progress:  {(i) / (len(df)) * 100:.2f} %")
+for i, r in enumerate(df_rpc.itertuples(), start=1):
     
-
     curr_t = r.time
     curr_price = get_prices(curr_t)
-    print(curr_price)
+
+    if i % 10 == 0:
+        print(f"Progress:  {(i) / (len(df_rpc)) * 100:.2f} %")
+        print(curr_price)
+
+
     prices.append({"height" : r.height,
                       "price" : curr_price,
                       "time" : curr_t})
         
 df_prices = pd.DataFrame(prices)
 df_prices.to_parquet("btc_prices.parquet")
+
+# df_prices = pd.read_parquet("btc_prices.parquet")
+df_final = df_rpc.merge(df_prices[["height", "price"]], on="height", how="left")
+df_final.to_parquet("blocks_prices.parquet")
+
+
+
