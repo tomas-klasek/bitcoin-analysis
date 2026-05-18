@@ -210,9 +210,13 @@ create_plot(df["height"], vsize_mb_median, "Block height","Median of virtual siz
 
 
 
-create_plot(df["dt_sec"], fee_mean_block,  "Time since last block [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png", color="blue", s=1)
-create_plot(df["dt_sec"], fee_rate_mean_block,  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png", color="blue", s=1)
-create_plot(df["dt_sec"], fee_rate_median_block,  "Time since last block [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
+create_plot(df["dt_sec"], fee_mean_block,  "Time since last block [s]", "Fee mean per block [sat]", "plots/height_fee_mean.png", color="blue", s=1)
+create_plot(df["dt_sec"], fee_rate_mean_block,  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/height_fee_rate_mean.png", color="blue", s=1)
+create_plot(df["dt_sec"], fee_rate_median_block,  "Time since last block [s]", "Fee rate median per block [sat]", "plots/height_fee_median.png", color="blue", s=1)
+
+create_plot(df["height"], fee_mean_block,  "Block height", "Fee mean per block [sat]", "plots/dt_fee_mean.png", color="blue", s=1)
+create_plot(df["height"], fee_rate_mean_block,  "Block height", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png", color="blue", s=1)
+create_plot(df["height"], fee_rate_median_block,  "Block height", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
 
 
 create_plot(df["height"], df["saturation"], "Block height", "Size saturation of the block", "plots/size_saturation.png", color="blue", s=1)
