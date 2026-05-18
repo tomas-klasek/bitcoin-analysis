@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import glob
 from scipy.stats import expon
+import scipy.stats as st
 
 # Function to create a scatter plot
 # =============================================================================
@@ -61,7 +62,7 @@ def create_histogram(x, xtitle, ytitle, file, logx=False, logy=False, nbins=100,
     #plt.close()
 # =============================================================================
 
-#Loading the block and transaction parquets
+#Loading the block, transaction and price parquets
 # =============================================================================
 block_dir = "blocks/"
 transaction_dir = "transactions/"
@@ -75,6 +76,9 @@ transaction_list = [pd.read_parquet(f) for f in files_transaction]
 df_blocks = pd.concat(blocks_list, ignore_index=True)
 df_transactions = pd.concat(transaction_list, ignore_index=True)
 
+df_prices = pd.read_parquet("btc_prices.parquet")
+df_blocks = df_blocks.merge(df_prices[["height", "price"]], on="height", how="left")
+
 # =============================================================================
 
 df = df_blocks    
@@ -85,14 +89,31 @@ df["dt"] = df["datetime"].diff()
 df["dt_sec"] = df["dt"].dt.total_seconds()
 df["nTxpertime"] = df["nTx"]/df["dt_sec"]
 df["size_mb"] = df["size"] / 1e6
+df_transactions["vsize_mb"] = df_transactions["vsize"]/1e6
+vsize_mb_sum = df_transactions.groupby("height")["vsize_mb"].sum()
+vsize_mb_mean = df_transactions.groupby("height")["vsize"].mean()
+vsize_mb_median = df_transactions.groupby("height")["vsize"].median()
+
+
+df["saturation"] = df["size_mb"]/4.
+
 df["tx_density"] = df["nTx"]/df["size_mb"]
-df_transactions["fee"] = (df_transactions["fee"].astype(float)*100000000.)
+df_transactions["fee"] = (df_transactions["fee"].astype(float)*100000000.) #btc to sat
 
-df["dt_rolling"] = df["dt_sec"].rolling(100).mean()
+df["nTx_next"] = df["nTx"].shift(-1)
+
+df["dt_rolling"] = df["dt_sec"].rolling(100, min_periods=20).mean()
 df["epoch"] = df["height"] // 2016
+df_transactions["fee_rate"] = df_transactions["fee"]/df_transactions["vsize"]
+
+fee_sum_block = df_transactions.groupby("height")["fee"].sum()
+fee_mean_block = df_transactions.groupby("height")["fee"].mean()
+fee_rate_mean_block = df_transactions.groupby("height")["fee_rate"].mean()
+fee_rate_median_block = df_transactions.groupby("height")["fee_rate"].median()
+
+#val_mean_block = df_transactions.groupby("height")["value"].mean()
+#val_median_block = df_transactions.groupby("height")["value"].median()
 # =============================================================================
-
-
 
 
 print("Printing info about the DataFrames:")
@@ -110,14 +131,21 @@ df_transactions.describe()
 print("\nFee information:\n", df_transactions["fee"].describe())
 
 
-create_plot(df["height"], df["nTxpertime"], "Block height", "Number of transactions per second", "plots/block_transactions.png", color="blue", s=5)
-create_plot(df["height"], df["dt_sec"], "Block height", "Time since last block", "plots/block_timeElapsed.png", color="blue", s=5)
-create_plot(df["nTx"], df["dt_sec"], "Number of transactions", "Time since last block", "plots/ntx_vs_dt.png", color="blue", s=5)
-#create_plot(df["height"], df["price"], "Height", "Price [USD]", "plots/block_price.png")
-#create_plot(df["nTx"], df["price"], "Number of transactions in a block", "Price [USD]", "plots/ntx_price.png")
-create_plot(df["height"], df["tx_density"], "Block height", "Transaction density", "plots/block_tx_density.png",color="blue", s=5)
-create_plot(df["height"], df["size_mb"], "Block height", "Size [MB]", "plots/block_size.png", color="blue", s=5)
-#create_plot(df_transactions["height"], df_transactions["fee"], "Block height", "Fee", "plots/block_fee.png")
+create_plot(df["height"], df["nTxpertime"], "Block height", "Number of transactions per second", "plots/block_transactions.png", color="blue", s=1)
+create_plot(df["height"], df["dt_sec"], "Block height", "Time since last block", "plots/block_timeElapsed.png", color="blue", s=1)
+create_plot(df["nTx"], df["dt_sec"], "Number of transactions", "Time since last block", "plots/ntx_vs_dt.png", color="blue", s=1)
+create_plot(df["nTx_next"], df["dt_sec"], "Number of transactions", "Lifetime of previous block", "plots/ntx_vs_dt.png", color="blue", s=1)
+
+
+print("Correlation of dt and ntx:\n", df[["dt_sec", "nTx"]].corr())
+print("Correlation of dt and next ntx:\n", df[["dt_sec", "nTx_next"]].corr())
+
+
+create_plot(df["height"], df["price"], "Height", "Price [USD]", "plots/block_price.png", scatter=False, color="blue")
+create_plot(df["nTx"], df["price"], "Number of transactions in a block", "Price [USD]", "plots/ntx_price.png", color="blue", s=1)
+create_plot(df["height"], df["tx_density"], "Block height", "Transaction density", "plots/block_tx_density.png",color="blue", s=1)
+create_plot(df["height"], df["size_mb"], "Block height", "Size [MB]", "plots/block_size.png", color="blue", s=1)
+create_plot(df_transactions["height"], df_transactions["fee"], "Block height", "Fee", "plots/block_fee.png", color="blue", s=1)
 
 
 # Time between blocks and the Poisson fit
@@ -137,9 +165,9 @@ plt.legend()
 plt.show()
 # =============================================================================
 
-# Rolling mean and the vertical line corresponding to the difficulty adjustment
+# Rolling mean and the vertical line corresponding to the difficulty adjustment, epoch analysis
 # ============================================================================= 
-create_plot(df["height"], df["dt_rolling"], "Block height", "Rolling mean over 100 blocks", "plots/dt_rolling.png",delete=False,color="blue", s=5)
+create_plot(df["height"], df["dt_rolling"], "Block height", "Block lifetime rolling mean over 100 blocks", "plots/dt_rolling.png",delete=False,color="blue", s=5)
 
 for h in df["height"]:
     if h % 2016 == 0:
@@ -152,12 +180,40 @@ print("Mean times over the epochs analysed: ", df.groupby("epoch")["dt_sec"].mea
 plt.figure()
 for epoch, df_epoch in df.groupby("epoch"):
     plt.scatter(df_epoch["height"], df_epoch["dt_sec"].rolling(100, min_periods=20).mean(), s=5, label=f"Epoch: {epoch}")
+    conf_int = st.t.interval(0.95, len(df_epoch), loc=df_epoch["dt_sec"].mean(), scale=df_epoch["dt_sec"].std() / np.sqrt(len(df_epoch)))
+    print("Confidence interval: ", conf_int)
+    print(f"Number of transactions in epoch {epoch}: {len(df_epoch['nTx'])}")
+    
+    
 plt.axhline(600, color="black", label="Target: 600s")
+plt.xlabel("Block height")
+plt.ylabel("Block lifetime rolling average (100 blocks) [s]")
 plt.legend()
 plt.show()
+
+epoch_stats = df.groupby("epoch")["dt_sec"].agg(["mean", "std", "count"])
+
+print("\nEpoch stats:\n", epoch_stats)
+
 # =============================================================================
 
 create_histogram(df["size_mb"], "Block size in MB", "Entries", "plots/hist_size.png", color="purple")
 create_histogram(df["tx_density"], "Transaction density", "Entries", "plots/hist_tx_dens.png", color="purple")
-create_histogram(df_transactions["fee"], "Fee", "Entries", "plots/hist_fee.png", True, True, logx_bins=True, xlim=(1, 1e8), color="purple")
-create_histogram(df_transactions["vsize"], "Virtual size of transaction", "Entries", "plots/hist_vsize.png", True, True, logx_bins=True, color="purple")
+create_histogram(df_transactions["fee"], "Fee [sat]", "Entries", "plots/hist_fee.png", True, True, logx_bins=True, xlim=(1, 1e8), color="purple")
+create_histogram(fee_mean_block, "Fee mean per block [sat]", "Entries", "plots/hist_fee_mean.png", color="purple")
+create_histogram(fee_rate_mean_block, "Fee rate mean per block [sat]", "Entries", "plots/hist_fee_rate_mean.png", color="purple")
+
+create_plot(df_transactions["height"], df_transactions["vsize_mb"], "Block height","Virtual size [mb]", "plots/virt_size_all.png", color="blue", s=1)
+create_plot(df["height"], vsize_mb_sum, "Block height","Sum of virtual size per block [mb]", "plots/virt_size_sum.png", color="blue", s=1)
+create_plot(df["height"], vsize_mb_mean, "Block height","Mean of virtual size per block [b]", "plots/virt_size_mean.png", color="blue", s=1)
+create_plot(df["height"], vsize_mb_median, "Block height","Median of virtual size per block [b]", "plots/virt_size_median.png", color="blue", s=1)
+
+
+
+create_plot(df["dt_sec"], fee_mean_block,  "Time since last block [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png", color="blue", s=1)
+create_plot(df["dt_sec"], fee_rate_mean_block,  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png", color="blue", s=1)
+create_plot(df["dt_sec"], fee_rate_median_block,  "Time since last block [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
+
+
+create_plot(df["height"], df["saturation"], "Block height", "Size saturation of the block", "plots/size_saturation.png", color="blue", s=1)
+create_plot(df["saturation"], fee_rate_median_block,  "Block filling ratio", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
