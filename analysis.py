@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import glob
 from scipy.stats import expon
 import scipy.stats as st
-
+import seaborn as sns
 # Function to create a scatter plot
 # =============================================================================
 def create_plot(x, y , xtitle, ytitle, file, scatter = True, logx=False, logy=False, xlim=None, delete=True, **kwargs):
@@ -208,7 +208,7 @@ create_plot(df["height"], vsize_mb_sum, "Block height","Sum of virtual size per 
 create_plot(df["height"], vsize_mb_mean, "Block height","Mean of virtual size per block [b]", "plots/virt_size_mean.png", color="blue", s=1)
 create_plot(df["height"], vsize_mb_median, "Block height","Median of virtual size per block [b]", "plots/virt_size_median.png", color="blue", s=1)
 
-
+create_plot(df["price"], fee_rate_median_block, "Price [USD]", "Fee rate median per block", "plots/price_vs_fee_rate_median.png", color="blue", s=1)
 
 create_plot(df["dt_sec"], fee_mean_block,  "Time since last block [s]", "Fee mean per block [sat]", "plots/height_fee_mean.png", color="blue", s=1)
 create_plot(df["dt_sec"], fee_rate_mean_block,  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/height_fee_rate_mean.png", color="blue", s=1)
@@ -218,6 +218,63 @@ create_plot(df["height"], fee_mean_block,  "Block height", "Fee mean per block [
 create_plot(df["height"], fee_rate_mean_block,  "Block height", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png", color="blue", s=1)
 create_plot(df["height"], fee_rate_median_block,  "Block height", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
 
-
-create_plot(df["height"], df["saturation"], "Block height", "Size saturation of the block", "plots/size_saturation.png", color="blue", s=1)
 create_plot(df["saturation"], fee_rate_median_block,  "Block filling ratio", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
+
+# Fee above threshold analysis
+# =============================================================================
+create_plot(df["height"], fee_rate_mean_block/fee_rate_median_block, "Block height", "Fee rate mean/median [sat]", "plots/thresh_fee_rate_mean-median_rat.png",color="blue", s=1)
+
+
+tx_block = df_transactions.groupby("height").agg(fee_rate_median = ("fee_rate", "median"), 
+                                                 fee_rate_mean = ("fee_rate", "mean"),
+                                                 tx_count = ("fee_rate", "size"))
+
+df_merged = df.merge(tx_block, on="height", how="left")
+
+threshold = df_merged["fee_rate_mean"].quantile(0.9)
+high = df_merged[df_merged["fee_rate_mean"]>threshold]
+low = df_merged[df_merged["fee_rate_mean"]<=threshold]
+
+print(high["saturation"].mean())
+print(df["saturation"].mean())
+
+create_plot(high["height"], high["fee_rate_median"], "Block height", "Fee rate median [sat]", "plots/thresh_high_fee_rate_median.png", color="blue", s=1)
+create_plot(low["height"], low["fee_rate_median"], "Block height", "Fee rate median [sat]", "plots/thresh_low_fee_rate_median.png", color="red", s=1)
+
+create_plot(high["height"], high["fee_rate_mean"], "Block height", "Fee rate mean [sat]", "plots/thresh_high_fee_rate_mean.png", color="blue", s=1)
+create_plot(low["height"], low["fee_rate_mean"], "Block height", "Fee rate mean [sat]", "plots/thresh_low_fee_rate_mean.png", color="red", s=1)
+
+create_plot(high["height"], high["price"], "Block height", "Price [USD]]", "plots/thresh_high_price.png", color="blue", s=1)
+create_plot(low["height"], low["price"], "Block height", "Price [USD]", "plots/thresh_low_price.png", color="red", s=1)
+
+create_plot(high["height"], high["dt_sec"], "Block height", "Time since last block [s]", "plots/thresh_high_dt.png",color="blue", s=1)
+create_plot(low["height"], low["dt_sec"], "Block height", "Time since last block [s]", "plots/thresh_low_dt.png",color="red", s=1)
+
+create_plot(high["height"], high["saturation"], "Block height", "Block filling ratio", "plots/thresh_high_fill_ratio.png",color="blue", s=1)
+create_plot(low["height"], low["saturation"], "Block height", "Block filling ratio", "plots/thresh_low_fill_ratio.png",color="red", s=1)
+
+create_plot(high["height"], high["tx_count"], "Block height", "Transaction count", "plots/thresh_high_fill_ratio.png",color="blue", s=1)
+create_plot(low["height"], low["tx_count"], "Block height", "Transaction count", "plots/thresh_low_fill_ratio.png",color="red", s=1)
+
+# =============================================================================
+
+corr = df[["dt_sec", "nTx", "size_mb", "saturation"]].corr()
+print(corr)
+
+cols = ["dt_sec", "nTx", "size_mb", "saturation", "tx_density", "price"]
+
+corr = df[cols].corr()
+
+plt.figure(figsize=(8,6))
+sns.heatmap(corr, annot=True, cmap="coolwarm", vmin=-1, vmax=1)
+
+plt.title("Correlation heatmap")
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
