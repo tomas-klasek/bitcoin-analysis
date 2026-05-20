@@ -177,6 +177,7 @@ plt.plot(x, pdf, linewidth=3, label="Exponential fit", color="orange")
 print("\nThe lambda parameter from the Poisson distribution fit: ", round(lambda_par,5))
 print("\nMean block lifetime: ", round(scale,2))
 plt.legend()
+plt.savefig("plots/poisson.png", dpi=300, bbox_inches="tight")
 plt.show()
 # =============================================================================
 
@@ -188,6 +189,7 @@ for h in df["height"]:
     if h % 2016 == 0:
         plt.axvline(h, color="red", label="Difficulty target change")
 plt.legend()
+plt.savefig("plots/height_lra.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 print("Mean times over the epochs analysed: ", df.groupby("epoch")["dt_sec"].mean())
@@ -204,6 +206,7 @@ plt.axhline(600, color="black", label="Target: 600s")
 plt.xlabel("Block height")
 plt.ylabel("Block lifetime rolling average (100 blocks) [s]")
 plt.legend()
+plt.savefig("plots/height_lra_epochs.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 epoch_stats = df.groupby("epoch")["dt_sec"].agg(["mean", "std", "count"])
@@ -286,6 +289,7 @@ sns.heatmap(corr, annot=True, cmap="coolwarm", vmin=-1, vmax=1)
 
 plt.title("Correlation heatmap")
 plt.tight_layout()
+plt.savefig("plots/correlation.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 
