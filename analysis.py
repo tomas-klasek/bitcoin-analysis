@@ -94,8 +94,8 @@ vsize_mb_sum = df_transactions.groupby("height")["vsize_mb"].sum()
 vsize_mb_mean = df_transactions.groupby("height")["vsize"].mean()
 vsize_mb_median = df_transactions.groupby("height")["vsize"].median()
 
-
-df["saturation"] = df["size_mb"]/4.
+df["saturation"] = df["weight"]/4e6
+#df["saturation"] = df["size_mb"]/4.
 
 df["tx_density"] = df["nTx"]/df["size_mb"]
 df_transactions["fee"] = (df_transactions["fee"].astype(float)*100000000.) #btc to sat
@@ -106,10 +106,25 @@ df["dt_rolling"] = df["dt_sec"].rolling(100, min_periods=20).mean()
 df["epoch"] = df["height"] // 2016
 df_transactions["fee_rate"] = df_transactions["fee"]/df_transactions["vsize"]
 
+vsize_sum = df_transactions.groupby("height")["vsize"].sum()
+
+df = df.merge(
+    vsize_sum.rename("vsize_sum"),
+    on="height",
+    how="left"
+)
+
+
 fee_sum_block = df_transactions.groupby("height")["fee"].sum()
 fee_mean_block = df_transactions.groupby("height")["fee"].mean()
 fee_rate_mean_block = df_transactions.groupby("height")["fee_rate"].mean()
 fee_rate_median_block = df_transactions.groupby("height")["fee_rate"].median()
+
+df = df.merge(
+    fee_rate_median_block.rename("fee_rate_median_block"),
+    on="height",
+    how="left"
+)
 
 #val_mean_block = df_transactions.groupby("height")["value"].mean()
 #val_median_block = df_transactions.groupby("height")["value"].median()
@@ -258,10 +273,11 @@ create_plot(low["height"], low["tx_count"], "Block height", "Transaction count",
 
 # =============================================================================
 
-corr = df[["dt_sec", "nTx", "size_mb", "saturation"]].corr()
+
+corr = df[["dt_sec", "nTx", "vsize_sum", "saturation", "fee_rate_median_block"]].corr()
 print(corr)
 
-cols = ["dt_sec", "nTx", "size_mb", "saturation", "tx_density", "price"]
+cols = ["dt_sec", "nTx", "vsize_sum", "saturation", "price", "fee_rate_median_block"]
 
 corr = df[cols].corr()
 
@@ -271,6 +287,7 @@ sns.heatmap(corr, annot=True, cmap="coolwarm", vmin=-1, vmax=1)
 plt.title("Correlation heatmap")
 plt.tight_layout()
 plt.show()
+
 
 
 
