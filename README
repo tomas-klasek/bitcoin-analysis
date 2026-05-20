@@ -1,0 +1,23 @@
+Project devoted to Bitcoin blockchain analysis using Bitcoin Core RPC and external market data.
+
+
+1. rpc_to_parquet.py
+Code used for the extraction of desired variables from the Bitcoin core using the RPC. The data is stored in parquets and a simple way of checkpoint saves is implemented.
+This code uses the getblock() function with verbosity set to 2 to obtain even the desired variables regarding the individual transactions.
+The results are in folders 'blocks/' and 'transactions/'.
+The stored variables are: 
+height, time, nTx, size, weight, fees, vsize and several other
+
+
+2. btc_prices.parquet
+Code used for the extraction of the Bitcoin prices for individual blocks. A Binance API is used to extract the prices at the time of the block origin. The values are again saved in parquets.
+The results are stored in 'btc_prices.parquet'
+
+
+3. analysis.py
+Main code used for:
+- visualization of quantities
+- a study of Poisson distribution of time between blocks
+- statistical and correlation analysis
+
+The plots and histograms are stored in the folder 'plots/'.
