@@ -1,31 +1,25 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import glob
 from scipy.stats import expon
 import scipy.stats as st
 import seaborn as sns
-from utils import create_plot, create_histogram, compare_thresh, save_fig
+from utils import load_parquets, create_plot, create_histogram, create_histogram2D, compare_thresh, save_fig
     
-#Loading the block, transaction and price parquets
+# Loading blocks, transaction and price parquets
 # =============================================================================
 block_dir = "blocks/"
 transaction_dir = "transactions/"
 
-files_block = sorted(glob.glob(block_dir+"*parquet"))
-files_transaction = sorted(glob.glob(transaction_dir+"*parquet"))
-
-blocks_list = [pd.read_parquet(f) for f in files_block]
-transaction_list = [pd.read_parquet(f) for f in files_transaction]
-
-df_blocks = pd.concat(blocks_list, ignore_index=True)
-df_transactions = pd.concat(transaction_list, ignore_index=True)
-
+df_blocks = load_parquets(block_dir)
+df_transactions = load_parquets(transaction_dir)
 df_prices = pd.read_parquet("btc_prices.parquet")
-df_blocks = df_blocks.merge(df_prices[["height", "price"]], on="height", how="left")
 
+df_blocks = df_blocks.merge(df_prices[["height", "price"]], on="height", how="left")
 # =============================================================================
 
+# Calculating variables
+# =============================================================================
 df = df_blocks    
 df = df.sort_values("time")
 
@@ -51,6 +45,10 @@ block_stats = df_transactions.groupby("height").agg({
 
 #val_mean_block = df_transactions.groupby("height")["value"].mean()
 #val_median_block = df_transactions.groupby("height")["value"].median()
+# =============================================================================
+
+# =============================================================================
+# Analysis part
 # =============================================================================
 
 # Time between blocks and the Poisson fit
@@ -107,40 +105,38 @@ print("\nEpoch stats:\n", epoch_stats)
 create_histogram(df["nTx"], "Transactions per block", "Entries", "plots/hist_ntx.png", color="purple")
 create_histogram(df["size_mb"], "Block size in MB", "Entries", "plots/hist_size.png", color="purple")
 create_histogram(df_transactions["fee"], "Fee [sat]", "Entries", "plots/hist_fee.png", True, True, logx_bins=True, xlim=(1, 1e8), color="purple")
-create_histogram(block_stats["fee"]["mean"], "Fee mean per block [sat]", "Entries", "plots/hist_fee_mean.png", color="purple")
 create_histogram(block_stats["fee_rate"]["mean"], "Fee rate mean per block [sat]", "Entries", "plots/hist_fee_rate_mean.png", color="purple")
+create_histogram(block_stats["fee_rate"]["median"], "Fee rate median per block [sat]", "Entries", "plots/hist_fee_rate_mean.png", color="purple")
 
 # Creating plots of basic quantities depending on height
 # =============================================================================
-create_plot(df_transactions["height"], df_transactions["vsize_mb"], "Block height","Virtual size [mb]", "plots/virt_size_all.png", color="blue", s=1)
-create_plot(df_transactions["height"], df_transactions["fee"], "Block height", "Fee", "plots/block_fee.png", color="blue", s=1)
 create_plot(df["height"], block_stats["vsize"]["sum"], "Block height","Sum of virtual size per block [mb]", "plots/virt_size_sum.png", color="blue", s=1)
-create_plot(df["height"], block_stats["vsize"]["mean"], "Block height","Mean of virtual size per block [b]", "plots/virt_size_mean.png", color="blue", s=1)
-create_plot(df["height"], block_stats["vsize"]["median"], "Block height","Median of virtual size per block [b]", "plots/virt_size_median.png", color="blue", s=1)
+create_plot(df["height"], block_stats["vsize"]["mean"], "Block height","Mean of virtual size per block [b]", "plots/virt_size_mean.png", logy=True, color="blue", s=1)
+create_plot(df["height"], block_stats["vsize"]["median"], "Block height","Median of virtual size per block [b]", "plots/virt_size_median.png", logy=True, color="blue", s=1)
 create_plot(df["height"], block_stats["fee"]["mean"],  "Block height", "Fee mean per block [sat]", "plots/heigh_fee_mean.png", color="blue", s=1)
 create_plot(df["height"], block_stats["fee_rate"]["mean"],  "Block height", "Fee rate mean per block [sat]", "plots/heigh_fee_rate_mean.png", color="blue", s=1)
 create_plot(df["height"], block_stats["fee_rate"]["median"],  "Block height", "Fee rate median per block [sat]", "plots/heigh_fee_median.png", color="blue", s=1)
 create_plot(df["height"], block_stats["fee_rate"]["mean"]/block_stats["fee_rate"]["median"], "Block height", "Fee rate mean/median [sat]", "plots/fee_rate_mean-median_rat.png",color="blue", s=1)
 create_plot(df["height"], df["saturation"], "Block height", "Block fill ratio", "plots/block_saturation.png", color="blue", s=1)
-create_plot(df["height"], df["nTxpertime"], "Block height", "Number of transactions per second", "plots/block_transactions.png", color="blue", s=1)
+#create_plot(df["height"], df["nTxpertime"].rolling(100).sum()/df["dt_sec"].rolling(100).sum(), "Block height", "Number of transactions per second", "plots/block_transactions.png", color="blue", s=1)
 create_plot(df["height"], df["dt_sec"], "Block height", "Time since last block", "plots/block_timeElapsed.png", color="blue", s=1)
 create_plot(df["height"], df["price"], "Height", "Price [USD]", "plots/block_price.png", scatter=False, color="blue")
 create_plot(df["height"], df["size_mb"], "Block height", "Size [MB]", "plots/block_size.png", color="blue", s=1)
 
 # Creating plots of other depencencies
 # =============================================================================
-create_plot(df["price"], block_stats["fee_rate"]["median"], "Price [USD]", "Fee rate median per block", "plots/price_vs_fee_rate_median.png", color="blue", s=1)
+create_histogram2D(df["price"], block_stats["fee_rate"]["median"], "Price [USD]", "Fee rate median per block", "plots/price_vs_fee_rate_median.png")
 
-create_plot(df["dt_sec"], block_stats["fee"]["mean"],  "Time since last block [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png", color="blue", s=1)
-create_plot(df["dt_sec"], block_stats["fee_rate"]["mean"],  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png", color="blue", s=1)
-create_plot(df["dt_sec"], block_stats["fee_rate"]["median"],  "Time since last block [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png", color="blue", s=1)
+create_histogram2D(df["dt_sec"], block_stats["fee"]["mean"],  "Time since last block [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png")
+create_histogram2D(df["dt_sec"], block_stats["fee_rate"]["mean"],  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png")
+create_histogram2D(df["dt_sec"], block_stats["fee_rate"]["median"],  "Time since last block [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png")
 
-create_plot(df["nTx"], df["price"], "Number of transactions in a block", "Price [USD]", "plots/ntx_price.png", color="blue", s=1)
-create_plot(df["nTx"], block_stats["fee_rate"]["median"],  "nTx", "Fee rate median per block [sat]", "plots/nTx_fee_median.png", color="blue", s=1)
-create_plot(df["nTx"], df["dt_sec"], "Number of transactions", "Time since last block", "plots/ntx_vs_dt.png", color="blue", s=1)
-create_plot(df["nTx_next"], df["dt_sec"], "Number of transactions", "Lifetime of previous block", "plots/ntx_vs_dt.png", color="blue", s=1)
+create_histogram2D(df["nTx"], df["price"], "Number of transactions in a block", "Price [USD]", "plots/ntx_price.png")
+create_histogram2D(df["nTx"], block_stats["fee_rate"]["median"],  "nTx", "Fee rate median per block [sat]", "plots/nTx_fee_median.png")
+create_histogram2D(df["nTx"], df["dt_sec"], "Number of transactions", "Time since last block", "plots/ntx_vs_dt.png")
+create_histogram2D(df["nTx_next"], df["dt_sec"], "Number of transactions", "Previous block time", "plots/ntx_vs_dt.png")
 
-create_plot(df["saturation"], block_stats["fee_rate"]["median"],  "Block filling ratio", "Fee rate median per block [sat]", "plots/saturation_fee_median.png", color="blue", s=1)
+create_plot(df["saturation"], block_stats["fee_rate"]["median"],  "Block fill ratio", "Fee rate median per block [sat]", "plots/saturation_fee_median.png", color="blue", s=1)
 
 # Fee above threshold analysis
 # =============================================================================
@@ -157,11 +153,10 @@ low = df_merged[df_merged["fee_rate_mean"]<=threshold]
 print("Fill ratio for fee rate above threshold: ", high["saturation"].mean())
 print("Fill ratio for fee rate below threshold: ", low["saturation"].mean())
 
-compare_thresh(high, low, "height", "fee_rate_median", "Block height", "Fee rate median [sat]", "plots/thresh_high_fee_rate_median.png" , "plots/thresh_low_fee_rate_median.png", color="blue", s=1)
-compare_thresh(high, low, "height", "fee_rate_mean", "Block height", "Fee rate mean [sat]", "plots/thresh_high_fee_rate_mean.png", "plots/thresh_low_fee_rate_mean.png", color="blue", s=1)
-compare_thresh(high, low, "height", "dt_sec", "Block height", "Time since last block [s]", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_dt.png", color="blue", s=1)
-compare_thresh(high, low, "height", "saturation", "Block height", "Block fill ratio", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png", color="blue", s=1)
-compare_thresh(high, low, "height", "tx_count", "Block height", "Transaction count", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png", color="blue", s=1)
+compare_thresh(high, low, "height", "fee_rate_median", "Block height", "Fee rate median [sat]", "plots/thresh_high_fee_rate_median.png" , "plots/thresh_low_fee_rate_median.png")
+compare_thresh(high, low, "height", "dt_sec", "Block height", "Time since last block [s]", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_dt.png")
+compare_thresh(high, low, "height", "saturation", "Block height", "Block fill ratio", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png")
+compare_thresh(high, low, "height", "tx_count", "Block height", "Transaction count", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png")
 
 # Creating correlation plot
 # =============================================================================
