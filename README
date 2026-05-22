@@ -1,5 +1,5 @@
 Project devoted to Bitcoin blockchain analysis using Bitcoin Core RPC and external market data.
-
+Some of the main results are in the "results.pdf" file, much more are in the plots folder.
 
 1. rpc_to_parquet.py
 Code used for the extraction of desired variables from the Bitcoin core using the RPC. The data is stored in parquets and a simple way of checkpoint saves is implemented.
