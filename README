@@ -13,8 +13,10 @@ height, time, nTx, size, weight, fees, vsize and several other
 Code used for the extraction of the Bitcoin prices for individual blocks. A Binance API is used to extract the prices at the time of the block origin. The values are again saved in parquets.
 The results are stored in 'btc_prices.parquet'
 
+3. utils.py
+Includes functions used in the analysis code itself, which are separated for better readability. It takes care of loading the parquets, creating plots and histograms and saving figures.
 
-3. analysis.py
+4. analysis.py
 Main code used for:
 - visualization of quantities
 - a study of Poisson distribution of time between blocks
