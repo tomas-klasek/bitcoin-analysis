@@ -26,10 +26,11 @@ df = df.sort_values("time")
 df["datetime"] = pd.to_datetime(df["time"], unit = "s")
 df["dt"] = df["datetime"].diff()
 df["dt_sec"] = df["dt"].dt.total_seconds()
-df["nTxpertime"] = df["nTx"]/df["dt_sec"]
+df["prev_dt"] = df["dt_sec"].shift(1)
+#df["nTxpertime"] = df["nTx"]/df["dt_sec"]
 df["size_mb"] = df["size"] / 1e6
 df["saturation"] = df["weight"]/4e6
-df["nTx_next"] = df["nTx"].shift(-1)
+#df["nTx_next"] = df["nTx"].shift(-1)
 df["dt_rolling"] = df["dt_sec"].rolling(100, min_periods=20).mean()
 df["epoch"] = df["height"] // 2016
 
@@ -119,7 +120,7 @@ create_plot(df["height"], block_stats["fee_rate"]["median"],  "Block height", "F
 create_plot(df["height"], block_stats["fee_rate"]["mean"]/block_stats["fee_rate"]["median"], "Block height", "Fee rate mean/median [sat]", "plots/fee_rate_mean-median_rat.png",color="blue", s=1)
 create_plot(df["height"], df["saturation"], "Block height", "Block fill ratio", "plots/block_saturation.png", color="blue", s=1)
 #create_plot(df["height"], df["nTxpertime"].rolling(100).sum()/df["dt_sec"].rolling(100).sum(), "Block height", "Number of transactions per second", "plots/block_transactions.png", color="blue", s=1)
-create_plot(df["height"], df["dt_sec"], "Block height", "Time since last block", "plots/block_timeElapsed.png", color="blue", s=1)
+create_plot(df["height"], df["dt_sec"], "Block height", "Current block time", "plots/block_timeElapsed.png", color="blue", s=1)
 create_plot(df["height"], df["price"], "Height", "Price [USD]", "plots/block_price.png", scatter=False, color="blue")
 create_plot(df["height"], df["size_mb"], "Block height", "Size [MB]", "plots/block_size.png", color="blue", s=1)
 
@@ -127,17 +128,16 @@ create_plot(df["height"], df["size_mb"], "Block height", "Size [MB]", "plots/blo
 # =============================================================================
 create_histogram2D(df["price"], block_stats["fee_rate"]["median"], "Price [USD]", "Fee rate median per block", "plots/price_vs_fee_rate_median.png")
 
-create_histogram2D(df["dt_sec"], block_stats["fee"]["mean"],  "Time since last block [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png")
-create_histogram2D(df["dt_sec"], block_stats["fee_rate"]["mean"],  "Time since last block [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png")
-create_histogram2D(df["dt_sec"], block_stats["fee_rate"]["median"],  "Time since last block [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png")
+create_histogram2D(df["prev_dt"], block_stats["fee"]["mean"],  "Previous block time [s]", "Fee mean per block [sat]", "plots/dt_fee_mean.png")
+create_histogram2D(df["prev_dt"], block_stats["fee_rate"]["mean"],  "Previous block time [s]", "Fee rate mean per block [sat]", "plots/dt_fee_rate_mean.png")
+create_histogram2D(df["prev_dt"], block_stats["fee_rate"]["median"],  "Previous block time [s]", "Fee rate median per block [sat]", "plots/dt_fee_median.png")
 
 create_histogram2D(df["nTx"], df["price"], "Number of transactions in a block", "Price [USD]", "plots/ntx_price.png")
 create_histogram2D(df["nTx"], block_stats["fee_rate"]["median"],  "nTx", "Fee rate median per block [sat]", "plots/nTx_fee_median.png")
-create_histogram2D(df["nTx"], df["dt_sec"], "Number of transactions", "Time since last block", "plots/ntx_vs_dt.png")
-create_histogram2D(df["nTx_next"], df["dt_sec"], "Number of transactions", "Previous block time", "plots/ntx_vs_dt.png")
+create_histogram2D(df["nTx"], df["dt_sec"], "Number of transactions", "Current block time [s]", "plots/ntx_vs_dt.png")
+create_histogram2D(df["nTx"], df["prev_dt"], "Number of transactions", "Previous block time", "plots/ntx_vs_dt.png")
 
 create_plot(df["saturation"], block_stats["fee_rate"]["median"],  "Block fill ratio", "Fee rate median per block [sat]", "plots/saturation_fee_median.png", color="blue", s=1)
-
 # Fee above threshold analysis
 # =============================================================================
 tx_block = df_transactions.groupby("height").agg(fee_rate_median = ("fee_rate", "median"), 
@@ -154,9 +154,9 @@ print("Fill ratio for fee rate above threshold: ", high["saturation"].mean())
 print("Fill ratio for fee rate below threshold: ", low["saturation"].mean())
 
 compare_thresh(high, low, "height", "fee_rate_median", "Block height", "Fee rate median [sat]", "plots/thresh_high_fee_rate_median.png" , "plots/thresh_low_fee_rate_median.png")
-compare_thresh(high, low, "height", "dt_sec", "Block height", "Time since last block [s]", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_dt.png")
-compare_thresh(high, low, "height", "saturation", "Block height", "Block fill ratio", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png")
-compare_thresh(high, low, "height", "tx_count", "Block height", "Transaction count", "plots/thresh_high_fee_rate_median.png", "plots/thresh_low_fill_ratio.png")
+compare_thresh(high, low, "height", "dt_sec", "Block height", "Current block time [s]", "plots/thresh_high_dt.png", "plots/thresh_low_dt.png")
+compare_thresh(high, low, "height", "saturation", "Block height", "Block fill ratio", "plots/thresh_high_fill_ratio.png", "plots/thresh_low_fill_ratio.png")
+compare_thresh(high, low, "height", "tx_count", "Block height", "Transaction count", "plots/thresh_high_fill_ratio.png", "plots/thresh_low_fill_ratio.png")
 
 # Creating correlation plot
 # =============================================================================
@@ -172,10 +172,8 @@ df = df.merge(
     how="left"
 )
 
-df["prev_dt"] = df["dt_sec"].shift(1)
 cols = ["prev_dt", "nTx", "vsize_sum", "price", "fee_rate_median_block"]
 
-corr = df[cols].corr()
 corr = df[cols].rename(columns={
     "fee_rate_median_block": "fee_med",
     "vsize_sum": "vsize"
