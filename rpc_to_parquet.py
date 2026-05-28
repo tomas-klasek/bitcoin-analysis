@@ -3,6 +3,7 @@ import pandas as pd
 import time
 import os
 import glob
+from utils import save_batch
 
 rpc_user = "bitcoin"
 rpc_password = "btc_analysis"
@@ -14,15 +15,15 @@ start_height = info["pruneheight"]
 latest = rpc.getblockcount()
 prune_target_size = info["prune_target_size"]
 
-blocks_parquet = "btc_analysis/blocks/blocks_3.0_new.parquet"
-transactions_parquet = "btc_analysis/transactions_new.parquet"
- 
 
 #Checkpoints
-os.makedirs("btc_analysis/blocks", exist_ok=True)
-os.makedirs("btc_analysis/transactions", exist_ok=True)
+os.makedirs("blocks", exist_ok=True)
+os.makedirs("transactions", exist_ok=True)
+os.makedirs("inputs", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
 
-block_files = sorted(glob.glob("btc_analysis/blocks/*"))
+
+block_files = sorted(glob.glob("blocks/*"))
 print("Files: ", block_files)
 
 if len(block_files) != 0:
@@ -40,7 +41,9 @@ print("Number of blocks: ", latest - start_height, "\n\n")
 
 blocks = []
 transactions = []
-batch_size = 300
+inputs = []
+outputs = []
+batch_size = 200
 batch_start = start_height
 
 for h in range(start_height, latest+1):
@@ -70,21 +73,36 @@ for h in range(start_height, latest+1):
                                  "vsize" : vsize              
                 })
             
+            for vin in tx["vin"]:
+                if "coinbase" in vin:
+                    continue
+                
+                inputs.append({"height" : h,
+                               "prev_vout" : vin["vout"],
+                               "prev_txid" : vin["txid"],
+                               "txid" : tx["txid"]})
+                
+            for i, vout in enumerate(tx["vout"]):
+                outputs.append({"height" : h,
+                                "vout" : i,
+                                "value" : vout["value"],
+                                "txid" : tx["txid"]})
+            
         if len(blocks) >= batch_size:
             batch_end = h
-            blocks_filename = f"btc_analysis/blocks/blocks_{batch_start}_{batch_end}.parquet"
-            pd.DataFrame(blocks).to_parquet(blocks_filename)
             
-            transactions_filename = f"btc_analysis/transactions/transactions_{batch_start}_{batch_end}.parquet"
-            pd.DataFrame(transactions).to_parquet(transactions_filename)
+            blocks = save_batch(blocks, "blocks", batch_start, batch_end)
+            transactions = save_batch(transactions, "transactions", batch_start, batch_end)
+            inputs = save_batch(inputs, "inputs", batch_start, batch_end)
+            outputs = save_batch(outputs, "outputs", batch_start, batch_end)
 
             print(f"Saved batch from {batch_start} to {batch_end}.")
             
-            blocks = []
-            transactions = []
-            
             batch_start = h + 1
-        
+            
+            # To deal with losing connection to RPC after batch saving
+            rpc = AuthServiceProxy(f"http://{rpc_user}:{rpc_password}@127.0.0.1:8332", timeout=1200)
+            
     #Block not available 
     except Exception as e:
         print("Skipped block ", h, "\nError message: ", str(e))
@@ -93,32 +111,14 @@ for h in range(start_height, latest+1):
 
 if len(blocks) > 0:
     batch_end = blocks[-1]["height"]
-    blocks_filename = f"btc_analysis/blocks/blocks_{batch_start}_{batch_end}.parquet"
-    pd.DataFrame(blocks).to_parquet(blocks_filename)
-    
-    transactions_filename = f"btc_analysis/transactions/transactions_{batch_start}_{batch_end}.parquet"
-    pd.DataFrame(transactions).to_parquet(transactions_filename)
+
+    save_batch(blocks, "blocks", batch_start, batch_end)
+    save_batch(transactions, "transactions", batch_start, batch_end)
+    save_batch(inputs, "inputs", batch_start, batch_end)
+    save_batch(outputs, "outputs", batch_start, batch_end)
 
     print(f"Final batch saved from {batch_start} to {batch_end}.")
     
-block_files = glob.glob("btc_analysis/blocks/*.parquet")
-
-df_blocks = pd.concat(
-    [pd.read_parquet(f) for f in block_files],
-    ignore_index=True
-)
-
-transactions_files = glob.glob("btc_analysis/transactions/*.parquet")
-df_tx = pd.concat(
-    [pd.read_parquet(f) for f in transactions_files],
-    ignore_index=True
-)
-
-df_blocks = df_blocks.sort_values("height")
-df_tx = df_tx.sort_values(["height", "txid"])   
-
-df_blocks.to_parquet(blocks_parquet)
-df_tx.to_parquet(transactions_parquet)
 print("Finished!")
 
 

@@ -4,6 +4,11 @@ from matplotlib.colors import LogNorm
 import glob
 import pandas as pd
 
+def save_batch(l, name, batch_start, batch_end):
+    path = f"{name}/{name}_{batch_start}_{batch_end}.parquet"
+    pd.DataFrame(l).to_parquet(path, index=False)
+    return []
+
 def load_parquets(path):
     files_block = sorted(glob.glob(path+"*parquet"))
     blocks_list = [pd.read_parquet(f) for f in files_block]
