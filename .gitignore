@@ -1,0 +1,8 @@
+blocks/
+transactions/
+inputs/
+outputs/
+
+*.parquet
+__pycache__/
+*.pyc
