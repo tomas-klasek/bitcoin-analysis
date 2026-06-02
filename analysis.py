@@ -7,7 +7,8 @@ import seaborn as sns
 import os
 import sys
 from utils import load_parquets, create_plot, create_histogram, create_histogram2D, compare_thresh, save_fig
-    
+import gc
+
 # Loading blocks, transaction and price parquets
 # =============================================================================
 print("Loading parquets...")
@@ -17,57 +18,42 @@ utxo_dir = "outputs/outputs_946674_946873"
 #utxo_dir = "outputs/"
 prices_dir = "btc_prices.parquet"
 
-# df_blocks = load_parquets(block_dir)
-# df_transactions = load_parquets(transaction_dir)
-# df_prices = pd.read_parquet(prices_dir)
+df_blocks = load_parquets(block_dir)
+df_transactions = load_parquets(transaction_dir)
+df_prices = pd.read_parquet(prices_dir)
 df_utxo = load_parquets(utxo_dir, ["value", "height", "txid"])
 
-# df_blocks = df_blocks.merge(df_prices[["height", "price"]], on="height", how="left")
+df_blocks = df_blocks.merge(df_prices[["height", "price"]], on="height", how="left")
 print("Parquets loaded!")
 
 # =============================================================================
 
 # Calculating variables
 # =============================================================================
-# df = df_blocks    
-# df = df.sort_values("time")
+df = df_blocks    
+df = df.sort_values("time")
 
-# df["datetime"] = pd.to_datetime(df["time"], unit = "s")
-# df["dt"] = df["datetime"].diff()
-# df["dt_sec"] = df["dt"].dt.total_seconds()
-# df["prev_dt"] = df["dt_sec"].shift(1)
-# #df["nTxpertime"] = df["nTx"]/df["dt_sec"]
-# df["size_mb"] = df["size"] / 1e6
-# df["saturation"] = df["weight"]/4e6
-# #df["nTx_next"] = df["nTx"].shift(-1)
-# df["dt_rolling"] = df["dt_sec"].rolling(100, min_periods=20).mean()
-# df["epoch"] = df["height"] // 2016
+df["datetime"] = pd.to_datetime(df["time"], unit = "s")
+df["dt"] = df["datetime"].diff()
+df["dt_sec"] = df["dt"].dt.total_seconds()
+df["prev_dt"] = df["dt_sec"].shift(1)
+#df["nTxpertime"] = df["nTx"]/df["dt_sec"]
+df["size_mb"] = df["size"] / 1e6
+df["saturation"] = df["weight"]/4e6
+#df["nTx_next"] = df["nTx"].shift(-1)
+df["dt_rolling"] = df["dt_sec"].rolling(100, min_periods=20).mean()
+df["epoch"] = df["height"] // 2016
 
-# df_transactions["vsize_mb"] = df_transactions["vsize"]/1e6
-# df_transactions["fee"] = (df_transactions["fee"].astype(float)*100000000.) #btc to sat
-# df_transactions["fee_rate"] = df_transactions["fee"]/df_transactions["vsize"]
+df_transactions["vsize_mb"] = df_transactions["vsize"]/1e6
+df_transactions["fee"] = (df_transactions["fee"].astype(float)*100000000.) #btc to sat
+df_transactions["fee_rate"] = df_transactions["fee"]/df_transactions["vsize"]
 
-# block_stats = df_transactions.groupby("height").agg({ 
-#     "fee": ["sum", "mean"],
-#     "fee_rate": ["mean", "median"],
-#     "vsize": ["sum", "mean", "median"]
-#     })
-df_utxo["value"] = pd.to_numeric(df_utxo["value"], errors="raise")
-
-print("Calculating...")
-df_utxo["value_sat"] = (df_utxo["value"].astype(float)*100000000.) #btc to sat
-utxo_stats = df_utxo.groupby("height").agg({
-    "value" : ["mean", "median"]
+block_stats = df_transactions.groupby("height").agg({ 
+    "fee": ["sum", "mean"],
+    "fee_rate": ["mean", "median"],
+    "vsize": ["sum", "mean", "median"]
     })
 
-tx = df_utxo.groupby(["height", "txid"])["value"].sum().reset_index()
-tx = tx.rename(columns={"value" : "tx_value"})
-
-block_sum = df_utxo.groupby("height")["value"].sum()
-block_avg = tx.groupby("height")["tx_value"].mean()
-block_median = tx.groupby("height")["tx_value"].median()
-block_p90 = tx.groupby("height")["tx_value"].quantile(0.9)
-block_p10 = tx.groupby("height")["tx_value"].quantile(0.1)
 print("Calculations done!")
 print("Plotting...")
 # =============================================================================
@@ -75,41 +61,6 @@ print("Plotting...")
 # =============================================================================
 # Analysis part
 # =============================================================================
-
-
-# =============================================================================
-# Analysis of UTXO set
-# =============================================================================
-
-os.makedirs("plots/utxo", exist_ok=True)
-
-create_plot(block_avg.index, block_avg, "UTXO value median per block [btc]", "Entries", "plots/utxo/hist_median_utxo.png", color="blue")
-
-create_histogram(df_utxo["value"], "UTXO value [btc]", "Entries", "plots/utxo/hist_utxo.png", xlim=(5e-7, 3e4), nbins=1000, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(utxo_stats["value"]["median"], "UTXO value median per block [btc]", "Entries", "plots/utxo/hist_median_utxo.png", xlim=(2e-6, 1e-2),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(utxo_stats["value"]["mean"], "UTXO value mean per block [btc]", "Entries", "plots/utxo/hist_mean_utxo.png", xlim=(1e-4, 1e2),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(block_sum, "Sum of value per block [btc]", "Entries", "plots/utxo/hist_sum.png", xlim=(1e0, 1e5),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(block_avg, "Average transaction value per block [btc]", "Entries", "plots/utxo/hist_avg_transaction.png", xlim=(1e-4, 1e3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(block_p90, "90% quantile of transaction value per block [btc]", "Entries", "plots/utxo/hist_value_p90.png", xlim=(1e-5, 1e1),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-create_histogram(block_p10, "10% quantile of transaction value per block [btc]", "Entries", "plots/utxo/hist_value_p10.png", xlim=(1e-6, 5e-3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
-
-print(df_utxo["value"].dtype)
-print((df_utxo["value"] == 0).sum())
-print(df_utxo.groupby("height")["value"].median().head(20))
-print(df_utxo["value"].describe(percentiles=[0.5, 0.9, 0.99, 0.999]))
-print("max BTC:", df_utxo["value"].max())
-
-sys.exit()
-
-
-
-
-
-
-
-
-
-
 
 
 # Time between blocks and the Poisson fit
@@ -249,19 +200,65 @@ plt.tight_layout()
 plt.savefig("plots/correlation.png", dpi=300, bbox_inches="tight")
 plt.show()
 
+
+
+del df_transactions
+del df_blocks
+del df_prices
+del df
+gc.collect()
+
+
 # # =============================================================================
 # # Analysis of UTXO set
 # # =============================================================================
 
-# os.makedirs("plots/utxo", exist_ok=True)
+# =============================================================================
+# Analysis of UTXO set
+# =============================================================================
+df_utxo = load_parquets(utxo_dir, ["value", "height", "txid"])
 
-# create_histogram(df_utxo["value"], "UTXO value [btc]", "Entries", "plots/utxo/hist_utxo.png", color="purple")
+df_utxo["value"] = pd.to_numeric(df_utxo["value"], errors="raise")
 
-# utxo_stats = df_utxo.groupby("height").agg({
-#     "value" : ["mean", "median"]
-#     })
+print("Calculating...")
+utxo_stats = df_utxo.groupby("height").agg({
+    "value" : ["mean", "median"]
+    })
 
-# create_plot(df_utxo["height"], utxo_stats["value"]["mean"], "Block height","Block mean value of UTXO [btc]", "plots/utxo/virt_size_sum.png", color="blue", s=1)
+tx = df_utxo.groupby(["height", "txid"])["value"].sum().reset_index()
+tx = tx.rename(columns={"value" : "tx_value"})
+
+block_sum = df_utxo.groupby("height")["value"].sum()
+block_avg = tx.groupby("height")["tx_value"].mean()
+block_median = tx.groupby("height")["tx_value"].median()
+block_p90 = tx.groupby("height")["tx_value"].quantile(0.9)
+block_p10 = tx.groupby("height")["tx_value"].quantile(0.1)
+tx_count = tx.groupby("height")["tx_value"].size()
+block_avg_med = block_avg/block_median
+
+del tx
+gc.collect()
+
+os.makedirs("plots/utxo", exist_ok=True)
+
+create_plot(block_avg.index, block_avg, "Block height", "Entries", "plots/utxo/hist_median_utxo.png", color="blue")
+
+create_histogram(df_utxo["value"], "UTXO value [btc]", "Entries", "plots/utxo/hist_utxo.png", xlim=(5e-7, 3e4), nbins=1000, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(utxo_stats["value"]["median"], "UTXO value median per block [btc]", "Entries", "plots/utxo/hist_median_utxo.png", xlim=(2e-6, 1e-2),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(utxo_stats["value"]["mean"], "UTXO value mean per block [btc]", "Entries", "plots/utxo/hist_mean_utxo.png", xlim=(1e-4, 1e2),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(block_sum, "Sum of value per block [btc]", "Entries", "plots/utxo/hist_sum.png", xlim=(1e0, 1e5),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(block_avg, "Average transaction value per block [btc]", "Entries", "plots/utxo/hist_avg_transaction.png", xlim=(1e-4, 1e3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(block_p90, "90% quantile of transaction value per block [btc]", "Entries", "plots/utxo/hist_value_p90.png", xlim=(1e-5, 1e1),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(block_p10, "10% quantile of transaction value per block [btc]", "Entries", "plots/utxo/hist_value_p10.png", xlim=(1e-6, 5e-3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(block_avg_med, "Average transaction value/median transaction value per block [btc]", "Entries", "plots/utxo/hist_avg_transaction.png", xlim=(1e-4, 1e3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+create_histogram(tx_count, "Transaction count", "Entries", "plots/utxo/hist_value_p10.png", xlim=(1e-6, 5e-3),nbins=400, logx=True, logx_bins=True, logy=True, color="cyan")
+
+
+print(df_utxo["value"].dtype)
+print((df_utxo["value"] == 0).sum())
+print(df_utxo.groupby("height")["value"].median().head(20))
+print(df_utxo["value"].describe(percentiles=[0.5, 0.9, 0.99, 0.999]))
+print("max BTC:", df_utxo["value"].max())
 
 
 
