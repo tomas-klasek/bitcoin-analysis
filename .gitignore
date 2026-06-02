@@ -3,6 +3,5 @@ transactions/
 inputs/
 utxo/
 
-*.parquet
 __pycache__/
 *.pyc
