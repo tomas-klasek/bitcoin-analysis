@@ -9,9 +9,9 @@ def save_batch(l, name, batch_start, batch_end):
     pd.DataFrame(l).to_parquet(path, index=False)
     return []
 
-def load_parquets(path):
+def load_parquets(path, columns=None):
     files_block = sorted(glob.glob(path+"*parquet"))
-    blocks_list = [pd.read_parquet(f) for f in files_block]
+    blocks_list = [pd.read_parquet(f, columns=columns) for f in files_block]
     df = pd.concat(blocks_list, ignore_index=True)
     return df
 
@@ -19,7 +19,7 @@ def create_plot(x, y , xtitle, ytitle, file, scatter = True, logx=False, logy=Fa
     plt.figure()
     #plt.ticklabel_format(useOffset=False)
     if scatter:
-        plt.scatter(x, y, **kwargs)
+        plt.scatter(x, y, xlim, **kwargs)
     else:
         plt.plot(x, y, **kwargs)
     
@@ -46,16 +46,19 @@ def create_histogram(x, xtitle, ytitle, file, logx=False, logy=False, nbins=100,
     plt.figure()
     #plt.ticklabel_format(useOffset=False)
     if logx_bins:
-        bins = np.logspace(0, 8, num=nbins)
+        
+        if xlim != None:
+            bins = np.logspace(np.log10(xlim[0]), np.log10(xlim[1]), num=nbins)    
+        else:
+            bins = np.logspace(-6, 4, num=nbins)
     else:
         bins = nbins
 
-    plt.hist(x, bins, **kwargs)
     plt.xlabel(xtitle)
-    plt.ylabel(ytitle)
+    plt.ylabel(ytitle)  
+    
     if xlim != None:
         plt.xlim(xlim)
-    
     
     if logx == True:
         plt.xscale("log")
@@ -63,6 +66,7 @@ def create_histogram(x, xtitle, ytitle, file, logx=False, logy=False, nbins=100,
     if logy == True:
         plt.yscale("log")
 
+    plt.hist(x, bins, **kwargs)
     plt.savefig(file, dpi=300, bbox_inches="tight")
     
     if delete:

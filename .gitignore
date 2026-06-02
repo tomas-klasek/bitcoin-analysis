@@ -1,7 +1,7 @@
 blocks/
 transactions/
 inputs/
-outputs/
+utxo/
 
 *.parquet
 __pycache__/
