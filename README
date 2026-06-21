@@ -4,7 +4,6 @@ Some of the main results are in the "results.pdf" file, much more are in the plo
 1. rpc_to_parquet.py
 Code used for the extraction of desired variables from the Bitcoin core using the RPC. The data is stored in parquets and a simple way of checkpoint saves is implemented.
 This code uses the getblock() function with verbosity set to 2 to obtain even the desired variables regarding the individual transactions.
-The results are in folders 'blocks/' and 'transactions/'.
 The stored variables are: 
 height, time, nTx, size, weight, fees, vsize and several other
 
