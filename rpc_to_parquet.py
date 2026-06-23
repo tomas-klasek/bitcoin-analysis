@@ -84,7 +84,7 @@ for h in range(start_height, latest+1):
             for i, vout in enumerate(tx["vout"]):
                 outputs.append({"height" : h,
                                 "vout" : i,
-                                "value_sat" : ["value"],
+                                "value_sat" : vout["value"],
                                 "txid" : tx["txid"]})
             
         if len(blocks) >= batch_size:
