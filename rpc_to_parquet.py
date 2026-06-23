@@ -6,7 +6,6 @@ import glob
 from utils import save_batch
 
 rpc_user = "bitcoin"
-rpc_password = "btc_analysis"
 
 rpc = AuthServiceProxy(f"http://{rpc_user}:{rpc_password}@127.0.0.1:8332", timeout=1200)
 
